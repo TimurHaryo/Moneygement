@@ -11,8 +11,8 @@ android {
         applicationId "com.boendevs.moneygement"
         minSdk 23
         targetSdk 33
-        versionCode 1
-        versionName "1.0"
+        versionCode 20
+        versionName "1.20"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -45,7 +45,7 @@ dependencies {
     implementation 'com.google.android.gms:play-services-wallet:19.1.0'
 
     def billing_version = "6.0.0"
-    implementation "com.android.billingclient:billing:$billing_version"
+    implementation "com.android.billingclient:billing-ktx:$billing_version"
 
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'

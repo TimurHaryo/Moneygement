@@ -3,22 +3,45 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <androidx.constraintlayout.widget.ConstraintLayout
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
         tools:context=".MainActivity">
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_pay_with_google_pay"
+            android:id="@+id/btn_pay_with_google_pay_one_day"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Buy Me"
-            android:visibility="gone"
+            android:text="One Day"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             tools:visibility="visible"/>
 
-    </androidx.constraintlayout.widget.ConstraintLayout>
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_pay_with_google_pay_one_week"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="One Week"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            tools:visibility="visible"/>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_pay_with_google_pay_one_month"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="One Month"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            tools:visibility="visible"/>
+
+    </LinearLayout>
 </layout>
