@@ -6,8 +6,6 @@ import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
-import androidx.lifecycle.ReportFragment.Companion.reportFragment
-import androidx.lifecycle.lifecycleScope
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClientStateListener
 import com.android.billingclient.api.BillingResult
@@ -15,7 +13,6 @@ import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.PurchasesUpdatedListener
 import com.boendevs.moneygement.databinding.ActivityMainBinding
 import com.boendevs.moneygement.util.PaymentUtil
-import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
@@ -52,6 +49,12 @@ class MainActivity : AppCompatActivity() {
         setupView()
     }
 
+    override fun onResume() {
+        super.onResume()
+        viewModel.queryUserInAppPurchases(billingClient)
+        viewModel.queryUserSubsPurchases(billingClient)
+    }
+
     private fun setupBillingConnection() {
         billingClient.startConnection(object : BillingClientStateListener {
             override fun onBillingSetupFinished(billingResult: BillingResult) {
@@ -59,7 +62,8 @@ class MainActivity : AppCompatActivity() {
                 if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
                     // The BillingClient is ready. You can query purchases here.
                     Log.i(TAG, "onBillingSetupFinished launch")
-                    viewModel.queryProductDetail(billingClient)
+                    viewModel.querySubscriptionProductDetail(billingClient)
+                    viewModel.queryInAppProductDetail(billingClient)
                 }
             }
 
@@ -74,10 +78,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupView() {
         binding.btnPayWithGooglePayOneDay.setOnClickListener {
-            Log.i(TAG, "setupView btnPayWithGooglePayOneDay productDetail: ${viewModel.productDetails}")
-            Log.i(TAG, "setupView btnPayWithGooglePayOneDay productDetail size: ${viewModel.productDetails.size}")
+            Log.i(TAG, "setupView btnPayWithGooglePayOneDay productDetail: ${viewModel.subscriptionProductDetails}")
+            Log.i(TAG, "setupView btnPayWithGooglePayOneDay productDetail size: ${viewModel.subscriptionProductDetails.size}")
             val billingParams = viewModel.buildBillingParams(
-                viewModel.productDetails.getOrNull(0),
+                viewModel.subscriptionProductDetails.getOrNull(0),
                 PaymentUtil.sbSubsDayPlanIds[2]
             ) ?: return@setOnClickListener
             val billingResult = billingClient.launchBillingFlow(
@@ -87,14 +91,35 @@ class MainActivity : AppCompatActivity() {
 
             Log.i(TAG, "setupView btnPayWithGooglePayOneDay code: ${billingResult.responseCode}")
         }
+
+        binding.btnPayWithGooglePayOneWeek.setOnClickListener {
+            Log.i(TAG, "setupView btnPayWithGooglePayOneWeek productDetail: ${viewModel.inAppProductDetails}")
+            Log.i(TAG, "setupView btnPayWithGooglePayOneWeek productDetail size: ${viewModel.inAppProductDetails.size}")
+            val billingParams = viewModel.buildBillingParams(
+                viewModel.inAppProductDetails.getOrNull(0),
+                PaymentUtil.dummyInAppProductIds[0]
+            ) ?: return@setOnClickListener
+            val billingResult = billingClient.launchBillingFlow(
+                this,
+                billingParams
+            )
+
+            Log.i(TAG, "setupView btnPayWithGooglePayOneWeek code: ${billingResult.responseCode}")
+        }
     }
 
     private fun handlePurchase(purchase: Purchase) {
-        purchase.purchaseState
         Toast.makeText(this, "${purchase.orderId} | ${purchase.products}", Toast.LENGTH_SHORT).show()
         Log.i(TAG, "successPurchase orderId: ${purchase.orderId}")
         Log.i(TAG, "successPurchase products: ${purchase.products}")
         Log.i(TAG, "successPurchase purchaseToken: ${purchase.purchaseToken}")
+        Log.i(TAG, "successPurchase obfuscateProfileId: ${purchase.accountIdentifiers?.obfuscatedAccountId}")
+
+        /**
+         * acknowledging product is actually verify that our server side has recorded the purchase data.
+         * So [viewModel.acknowledgePurchase()] must be called AFTER success state from BE
+         * */
+        viewModel.acknowledgePurchase(billingClient, purchase.purchaseToken)
     }
 
     companion object {
