@@ -7,11 +7,12 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
 import com.android.billingclient.api.BillingClient
-import com.android.billingclient.api.BillingClientStateListener
-import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.PurchasesUpdatedListener
 import com.boendevs.moneygement.databinding.ActivityMainBinding
+import com.boendevs.moneygement.extension.observeLiveEvent
+import com.boendevs.moneygement.extension.whenReady
+import com.boendevs.moneygement.google.connection.BillingConnectionProvider
 import com.boendevs.moneygement.util.PaymentUtil
 
 class MainActivity : AppCompatActivity() {
@@ -19,7 +20,7 @@ class MainActivity : AppCompatActivity() {
     private var _binding: ActivityMainBinding? = null
     private val binding: ActivityMainBinding get() = _binding!!
 
-    private val viewModel: MainViewModel by viewModels()
+    private val viewModel: MainViewModel by viewModels { MainViewModel.Factory(billingClient) }
 
     private val purchaseUpdateListener = PurchasesUpdatedListener { billingResult, purchases ->
         Log.i(TAG, "billing result: $billingResult | ${billingResult.responseCode}")
@@ -42,69 +43,83 @@ class MainActivity : AppCompatActivity() {
             .build()
     }
 
+    private val billingConnectionProvider by lazy {
+        BillingConnectionProvider(billingClient)
+            .setConnectionListener(object : BillingConnectionProvider.ConnectionListener {
+                override fun onConnected() {
+                    Log.i(TAG, "onBillingSetupFinished launch")
+                    viewModel.querySubscriptionProductDetail()
+                    viewModel.queryInAppProductDetail()
+                }
+
+                override fun onErrorConnection() {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Something went wrong during connecting to google service",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            })
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         _binding = DataBindingUtil.setContentView(this, R.layout.activity_main)
         setupBillingConnection()
         setupView()
+        setupObserver()
     }
 
     override fun onResume() {
         super.onResume()
-        viewModel.queryUserInAppPurchases(billingClient)
-        viewModel.queryUserSubsPurchases(billingClient)
+        billingClient.whenReady {
+            viewModel.queryUserInAppPurchases()
+            viewModel.queryUserSubsPurchases()
+        }
+    }
+
+    override fun onDestroy() {
+        billingConnectionProvider.disconnect()
+        super.onDestroy()
     }
 
     private fun setupBillingConnection() {
-        billingClient.startConnection(object : BillingClientStateListener {
-            override fun onBillingSetupFinished(billingResult: BillingResult) {
-                Log.i(TAG, "onBillingSetupFinished code: ${billingResult.responseCode}")
-                if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                    // The BillingClient is ready. You can query purchases here.
-                    Log.i(TAG, "onBillingSetupFinished launch")
-                    viewModel.querySubscriptionProductDetail(billingClient)
-                    viewModel.queryInAppProductDetail(billingClient)
-                }
-            }
-
-            override fun onBillingServiceDisconnected() {
-                // Try to restart the connection on the next request to
-                // Google Play by calling the startConnection() method.
-                Log.i(TAG, "onBillingServiceDisconnected")
-                setupBillingConnection() // <--- add some logic. i.e only allowed to retry 3 times
-            }
-        })
+        billingConnectionProvider.connect()
     }
 
     private fun setupView() {
         binding.btnPayWithGooglePayOneDay.setOnClickListener {
             Log.i(TAG, "setupView btnPayWithGooglePayOneDay productDetail: ${viewModel.subscriptionProductDetails}")
-            Log.i(TAG, "setupView btnPayWithGooglePayOneDay productDetail size: ${viewModel.subscriptionProductDetails.size}")
-            val billingParams = viewModel.buildBillingParams(
+            Log.i(
+                TAG,
+                "setupView btnPayWithGooglePayOneDay productDetail size: ${viewModel.subscriptionProductDetails.size}"
+            )
+            viewModel.buildBillingParams(
                 viewModel.subscriptionProductDetails.getOrNull(0),
                 PaymentUtil.sbSubsDayPlanIds[2]
-            ) ?: return@setOnClickListener
-            val billingResult = billingClient.launchBillingFlow(
-                this,
-                billingParams
             )
-
-            Log.i(TAG, "setupView btnPayWithGooglePayOneDay code: ${billingResult.responseCode}")
         }
 
         binding.btnPayWithGooglePayOneWeek.setOnClickListener {
             Log.i(TAG, "setupView btnPayWithGooglePayOneWeek productDetail: ${viewModel.inAppProductDetails}")
             Log.i(TAG, "setupView btnPayWithGooglePayOneWeek productDetail size: ${viewModel.inAppProductDetails.size}")
-            val billingParams = viewModel.buildBillingParams(
+            viewModel.buildBillingParams(
                 viewModel.inAppProductDetails.getOrNull(0),
                 PaymentUtil.dummyInAppProductIds[0]
-            ) ?: return@setOnClickListener
-            val billingResult = billingClient.launchBillingFlow(
-                this,
-                billingParams
             )
+        }
+    }
 
-            Log.i(TAG, "setupView btnPayWithGooglePayOneWeek code: ${billingResult.responseCode}")
+    private fun setupObserver() {
+        observeLiveEvent(viewModel.mainEvent) { event ->
+            when(event) {
+                is MainEvent.SuccessBilling -> {
+                    billingClient.launchBillingFlow(
+                        this,
+                        event.billingParam
+                    )
+                }
+            }
         }
     }
 

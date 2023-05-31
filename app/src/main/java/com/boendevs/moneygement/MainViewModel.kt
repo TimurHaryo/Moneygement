@@ -2,23 +2,21 @@ package com.boendevs.moneygement
 
 import android.util.Log
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.android.billingclient.api.AcknowledgePurchaseParams
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClient.ProductType
-import com.android.billingclient.api.BillingFlowParams
 import com.android.billingclient.api.ProductDetails
-import com.android.billingclient.api.QueryPurchasesParams
-import com.android.billingclient.api.queryProductDetails
+import com.boendevs.moneygement.extension.MutableLiveEvent
+import com.boendevs.moneygement.extension.toEvent
+import com.boendevs.moneygement.google.BillingClientLauncher
 import com.boendevs.moneygement.util.PaymentUtil
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
-class MainViewModel : ViewModel() {
-
-    private val productDetailParamsBuilder = BillingFlowParams.ProductDetailsParams.newBuilder()
-    private val billingFlowParamsBuilder = BillingFlowParams.newBuilder()
+class MainViewModel(
+    billingClient: BillingClient
+) : ViewModel() {
 
     private val randomId = listOf("uwu", "qwerty", "sheeshh").random()
 
@@ -28,53 +26,56 @@ class MainViewModel : ViewModel() {
     var inAppProductDetails: List<ProductDetails> = emptyList()
         private set
 
-    fun querySubscriptionProductDetail(billingClient: BillingClient) {
+    private val billingClientLauncher = BillingClientLauncher(billingClient)
+
+    private val _mainEvent = MutableLiveEvent<MainEvent>()
+    val mainEvent get() = _mainEvent
+
+    fun querySubscriptionProductDetail() {
         viewModelScope.launch {
-            val params = PaymentUtil.buildProductDetailsParams(
-                PaymentUtil.buildProducts(ProductType.SUBS, PaymentUtil.dummySubsProductIds)
-            )
-            val productDetailsResult = withContext(Dispatchers.IO) {
-                billingClient.queryProductDetails(params)
-            }
+            val productDetailsResult =
+                billingClientLauncher.queryProductDetails(ProductType.SUBS, PaymentUtil.dummySubsProductIds)
             Log.i(TAG, "querySubscriptionProductDetail data: ${productDetailsResult.productDetailsList}")
             Log.i(TAG, "querySubscriptionProductDetail code: ${productDetailsResult.billingResult.responseCode}")
             subscriptionProductDetails = productDetailsResult.productDetailsList.orEmpty()
         }
     }
 
-    fun queryInAppProductDetail(billingClient: BillingClient) {
+    fun queryInAppProductDetail() {
         viewModelScope.launch {
-            val params = PaymentUtil.buildProductDetailsParams(
-                PaymentUtil.buildProducts(ProductType.INAPP, PaymentUtil.dummyInAppProductIds)
-            )
-            val productDetailsResult = withContext(Dispatchers.IO) {
-                billingClient.queryProductDetails(params)
-            }
+            val productDetailsResult =
+                billingClientLauncher.queryProductDetails(ProductType.INAPP, PaymentUtil.dummyInAppProductIds)
             Log.i(TAG, "queryInAppProductDetail data: ${productDetailsResult.productDetailsList}")
             Log.i(TAG, "queryInAppProductDetail code: ${productDetailsResult.billingResult.responseCode}")
             inAppProductDetails = productDetailsResult.productDetailsList.orEmpty()
         }
     }
 
-    fun queryUserInAppPurchases(billingClient: BillingClient) {
+    fun queryUserInAppPurchases() {
         viewModelScope.launch {
-            val param = QueryPurchasesParams.newBuilder()
-                .setProductType(ProductType.INAPP)
-            billingClient.queryPurchasesAsync(param.build()) { result, purchases ->
-                Log.i(TAG, "queryUserPurchases code: ${result.responseCode}")
-                Log.i(TAG, "queryUserPurchases data: $purchases")
-            }
+            billingClientLauncher.queryUserPurchases(
+                ProductType.INAPP,
+                onError = {
+                    Log.i(TAG, "queryUserPurchases code: $it")
+                },
+                onSuccess = { purchases ->
+                    Log.i(TAG, "queryUserPurchases data: $purchases")
+                }
+            )
         }
     }
 
-    fun queryUserSubsPurchases(billingClient: BillingClient) {
+    fun queryUserSubsPurchases() {
         viewModelScope.launch {
-            val param = QueryPurchasesParams.newBuilder()
-                .setProductType(ProductType.SUBS)
-            billingClient.queryPurchasesAsync(param.build()) { result, purchases ->
-                Log.i(TAG, "queryUserPurchases code: ${result.responseCode}")
-                Log.i(TAG, "queryUserPurchases data: $purchases")
-            }
+            billingClientLauncher.queryUserPurchases(
+                ProductType.SUBS,
+                onError = {
+                    Log.i(TAG, "queryUserPurchases code: $it")
+                },
+                onSuccess = { purchases ->
+                    Log.i(TAG, "queryUserPurchases data: $purchases")
+                }
+            )
         }
     }
 
@@ -88,29 +89,25 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    fun buildBillingParams(productDetails: ProductDetails?, planId: String): BillingFlowParams? {
-        productDetails ?: return null
-        Log.i(TAG, "buildBillingParams randomId: $randomId")
-
-        val productToken = productDetails
-            .subscriptionOfferDetails
-            ?.run {
-                firstOrNull { it.basePlanId.equals(planId, true) } ?: firstOrNull()
+    fun buildBillingParams(productDetails: ProductDetails?, planId: String) {
+        viewModelScope.launch {
+            billingClientLauncher.billingFlow(
+                productDetails,
+                planId,
+                randomId
+            ).collect { params ->
+                _mainEvent.value = MainEvent.SuccessBilling(params).toEvent()
             }
-            ?.offerToken
-            .orEmpty()
-        Log.i(TAG, "buildBillingParams token: ${productDetails.subscriptionOfferDetails?.getOrNull(1)?.offerToken.orEmpty()}")
-        Log.i(TAG, "buildBillingParams tokens: $productToken")
-        Log.i(TAG, "buildBillingParams ids: ${productDetails.subscriptionOfferDetails?.map { it.basePlanId }}")
-        val productDetailParams = productDetailParamsBuilder
-            .setProductDetails(productDetails)
-            .setOfferToken(productToken)
-            .build()
+        }
+    }
 
-        return billingFlowParamsBuilder
-            .setProductDetailsParamsList(listOf(productDetailParams))
-            .setObfuscatedAccountId(randomId)
-            .build()
+    class Factory(
+        private val billingClient: BillingClient
+    ) : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            return MainViewModel(billingClient) as T
+        }
     }
 
     companion object {
