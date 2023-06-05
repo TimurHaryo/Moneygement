@@ -12,6 +12,7 @@ import com.android.billingclient.api.PurchasesUpdatedListener
 import com.boendevs.moneygement.databinding.ActivityMainBinding
 import com.boendevs.moneygement.extension.observeLiveEvent
 import com.boendevs.moneygement.extension.whenReady
+import com.boendevs.moneygement.google.BillingClientProvider
 import com.boendevs.moneygement.google.connection.BillingConnectionProvider
 import com.boendevs.moneygement.util.PaymentUtil
 
@@ -20,31 +21,14 @@ class MainActivity : AppCompatActivity() {
     private var _binding: ActivityMainBinding? = null
     private val binding: ActivityMainBinding get() = _binding!!
 
-    private val viewModel: MainViewModel by viewModels { MainViewModel.Factory(billingClient) }
+    private val viewModel: MainViewModel by viewModels { MainViewModel.Factory(billingClientProvider.billingClient) }
 
-    private val purchaseUpdateListener = PurchasesUpdatedListener { billingResult, purchases ->
-        Log.i(TAG, "billing result: $billingResult | ${billingResult.responseCode}")
-        Log.i(TAG, "billing result msg: $purchases")
-        if (billingResult.responseCode == BillingClient.BillingResponseCode.OK && purchases != null) {
-            for (purchase in purchases) {
-                handlePurchase(purchase)
-            }
-        } else if (billingResult.responseCode == BillingClient.BillingResponseCode.USER_CANCELED) {
-            // Handle an error caused by a user cancelling the purchase flow.
-        } else {
-            // Handle any other error codes.
-        }
-    }
-
-    private val billingClient by lazy {
-        BillingClient.newBuilder(this)
-            .setListener(purchaseUpdateListener)
-            .enablePendingPurchases()
-            .build()
+    private val billingClientProvider by lazy {
+        BillingClientProvider(this)
     }
 
     private val billingConnectionProvider by lazy {
-        BillingConnectionProvider(billingClient)
+        BillingConnectionProvider(billingClientProvider.billingClient)
             .setConnectionListener(object : BillingConnectionProvider.ConnectionListener {
                 override fun onConnected() {
                     Log.i(TAG, "onBillingSetupFinished launch")
@@ -72,7 +56,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        billingClient.whenReady {
+        billingClientProvider.billingClient.whenReady {
             viewModel.queryUserInAppPurchases()
             viewModel.queryUserSubsPurchases()
         }
@@ -85,6 +69,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupBillingConnection() {
         billingConnectionProvider.connect()
+        billingClientProvider
+            .setSuccessPayment {
+                handlePurchase(it)
+            }
+            .setCancelledPayment {
+                Log.i(TAG, "billing cancelled result")
+            }
+            .setErrorPayment {
+                Log.i(TAG, "billing error result: $it")
+            }
     }
 
     private fun setupView() {
@@ -114,7 +108,7 @@ class MainActivity : AppCompatActivity() {
         observeLiveEvent(viewModel.mainEvent) { event ->
             when(event) {
                 is MainEvent.SuccessBilling -> {
-                    billingClient.launchBillingFlow(
+                    billingClientProvider.billingClient.launchBillingFlow(
                         this,
                         event.billingParam
                     )
@@ -134,7 +128,7 @@ class MainActivity : AppCompatActivity() {
          * acknowledging product is actually verify that our server side has recorded the purchase data.
          * So [viewModel.acknowledgePurchase()] must be called AFTER success state from BE
          * */
-        viewModel.acknowledgePurchase(billingClient, purchase.purchaseToken)
+        viewModel.acknowledgePurchase(billingClientProvider.billingClient, purchase.purchaseToken)
     }
 
     companion object {
