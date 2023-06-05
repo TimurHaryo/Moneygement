@@ -4,9 +4,10 @@ import android.util.Log
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClientStateListener
 import com.android.billingclient.api.BillingResult
+import com.boendevs.moneygement.google.BillingClientProvider
 
 class BillingConnectionProvider(
-    private val billingClient: BillingClient
+    private val billingClientProvider: BillingClientProvider
 ) {
 
     private var retryAttempts = MAX_ATTEMPTS
@@ -20,7 +21,7 @@ class BillingConnectionProvider(
 
     fun connect(): Boolean {
         var isConnected = false
-        billingClient.startConnection(object : BillingClientStateListener {
+        billingClientProvider.billingClient.startConnection(object : BillingClientStateListener {
             override fun onBillingServiceDisconnected() {
                 reconnect()
             }
@@ -41,7 +42,7 @@ class BillingConnectionProvider(
     }
 
     fun disconnect() {
-        billingClient.endConnection()
+        billingClientProvider.billingClient.endConnection()
         listener = null
     }
 

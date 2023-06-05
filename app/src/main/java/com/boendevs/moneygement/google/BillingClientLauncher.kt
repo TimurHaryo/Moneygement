@@ -19,7 +19,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 
 class BillingClientLauncher(
-    private val billingClient: BillingClient
+    private val billingClientProvider: BillingClientProvider
 ) {
 
     private val productDetailParamsBuilder by lazy {
@@ -41,7 +41,7 @@ class BillingClientLauncher(
         )
 
         return withContext(dispatcherIO) {
-            billingClient.queryProductDetails(params)
+            billingClientProvider.billingClient.queryProductDetails(params)
         }
     }
 
@@ -53,7 +53,7 @@ class BillingClientLauncher(
         val param = QueryPurchasesParams.newBuilder()
             .setProductType(productType)
             .build()
-        billingClient.queryPurchasesAsync(param) { result, purchases ->
+        billingClientProvider.billingClient.queryPurchasesAsync(param) { result, purchases ->
             if (result.responseCode == BillingResponseCode.OK) {
                 onSuccess(purchases)
                 return@queryPurchasesAsync

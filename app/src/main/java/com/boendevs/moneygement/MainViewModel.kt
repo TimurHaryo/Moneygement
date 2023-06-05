@@ -11,11 +11,12 @@ import com.android.billingclient.api.ProductDetails
 import com.boendevs.moneygement.extension.MutableLiveEvent
 import com.boendevs.moneygement.extension.toEvent
 import com.boendevs.moneygement.google.BillingClientLauncher
+import com.boendevs.moneygement.google.BillingClientProvider
 import com.boendevs.moneygement.util.PaymentUtil
 import kotlinx.coroutines.launch
 
 class MainViewModel(
-    billingClient: BillingClient
+    billingClient: BillingClientProvider
 ) : ViewModel() {
 
     private val randomId = listOf("uwu", "qwerty", "sheeshh").random()
@@ -79,6 +80,9 @@ class MainViewModel(
         }
     }
 
+    /**
+     * acknowledge better in BE side. this is just example
+     * */
     fun acknowledgePurchase(billingClient: BillingClient, token: String) {
         viewModelScope.launch {
             val param = AcknowledgePurchaseParams.newBuilder()
@@ -102,7 +106,7 @@ class MainViewModel(
     }
 
     class Factory(
-        private val billingClient: BillingClient
+        private val billingClient: BillingClientProvider
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {

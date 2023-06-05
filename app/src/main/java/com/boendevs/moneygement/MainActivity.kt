@@ -21,14 +21,14 @@ class MainActivity : AppCompatActivity() {
     private var _binding: ActivityMainBinding? = null
     private val binding: ActivityMainBinding get() = _binding!!
 
-    private val viewModel: MainViewModel by viewModels { MainViewModel.Factory(billingClientProvider.billingClient) }
+    private val viewModel: MainViewModel by viewModels { MainViewModel.Factory(billingClientProvider) }
 
     private val billingClientProvider by lazy {
         BillingClientProvider(this)
     }
 
     private val billingConnectionProvider by lazy {
-        BillingConnectionProvider(billingClientProvider.billingClient)
+        BillingConnectionProvider(billingClientProvider)
             .setConnectionListener(object : BillingConnectionProvider.ConnectionListener {
                 override fun onConnected() {
                     Log.i(TAG, "onBillingSetupFinished launch")
